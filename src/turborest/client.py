@@ -3,7 +3,7 @@ import urllib.request
 import json
 
 class Client:
-    def __init__(self, format: str = "json", auth: tuple = None):
+    def __init__(self, format: str = "json", auth: tuple = None, proxy: str = None) -> None:
         """
         Create a pyResty client
         """
@@ -15,6 +15,7 @@ class Client:
         self.json = False
         if format == "json":
             self.json = True
+        self.proxy = proxy
     
     def query(self, url: str, method: str = "GET", data: dict = None) -> urllib.request.Request:
         """
@@ -23,6 +24,10 @@ class Client:
         if data:
             data = urllib.parse.urlencode(data)
             data = data.encode("ascii")
+        if self.proxy:
+            proxy = urllib.request.ProxyHandler({"http": self.proxy, "https": self.proxy})
+            opener = urllib.request.build_opener(proxy)
+            urllib.request.install_opener(opener)
         req = urllib.request.Request(url, data=data, headers=self.headers, method=method)
         return req
     
