@@ -17,8 +17,7 @@ classifiers = [
 
 [options]
 python_requires = ">=3.7"
-package_dir = ""
-packages = find:
+package_dir = "src"
 include_package_data = true
 
 [options.packages.find]
