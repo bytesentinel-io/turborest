@@ -20,5 +20,5 @@ packages = find:
 include_package_data = True
 python_requires = >=3.7
 
-[options.extras_require]
-tests = pytest
+[options.packages.find]
+where = src
