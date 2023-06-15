@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="turborest",
-    version="0.1.3",
+    version="0.1.4",
     author="ByteSentinel.io",
     author_email="dev@bytesentinel.io",
     description="A library for monitoring files and directories for changes",
