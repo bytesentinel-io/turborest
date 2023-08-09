@@ -1,201 +1,170 @@
 import urllib.parse
 import urllib.request
 import json
+import base64
+
+from .__main__ import Application
+from .logger import HTTPLogger
 
 class Client:
-    def __init__(self, format: str = "json", auth: tuple = None, proxy: str = None) -> None:
+    def __init__(self, format: str = None, auth: tuple = None, proxy: str = None, logger: HTTPLogger = None) -> None:
         """
         Create a pyResty client
         """
         self.headers = {}
-        self.headers["User-Agent"] = "TurboRest/0.1.4"
-        match format:
+        self.format = self.__format(format)
+        self.set_content_type(format)
+        self.set_accept(format)
+        self.set_agent(f"{Application.name}/{Application.version}")
+        self.logger = None
+        if logger:
+            self.logger = logger
+
+    def __format(self, value: str) -> str:
+        """
+        Format the value to the set format
+        """
+        if value is None:
+            return None
+        match value:
             case "json":
-                self.headers["Content-Type"] = f"application/{format}"
+                return "application/json"
             case "xml":
-                self.headers["Content-Type"] = f"application/{format}"
-            case "html":
-                self.headers["Content-Type"] = f"text/{format}"
+                return "application/xml"
+            case "yaml":
+                return "application/yaml"
             case "text":
-                self.headers["Content-Type"] = f"text/{format}"
+                return "text/plain"
+            case "html":
+                return "text/html"
             case _:
-                self.headers["Content-Type"] = "application/json"
-        if auth:
-            self.headers["Authorization"] = f"{auth[0]} {auth[1]}"
-        self.json = False
-        if format == "json":
-            self.json = True
-        self.proxy = proxy
-        self.success = None
-        self.error = print
+                raise Exception("Invalid format!")
+
+    def set_content_type(self, format: str) -> None:
+        """
+        Set the content type of the request ["Content-Type"]
+        """
+        if format is not None:
+            self.content_type = self.__format(format)
+            self.headers["Content-Type"] = self.content_type
+        else:
+            self.content_type = "application/json"
+            self.headers["Content-Type"] = self.content_type
     
-    def query(self, url: str, method: str = "GET", data: dict = None) -> urllib.request.Request:
+    def set_accept(self, format: str) -> None:
         """
-        Query a REST endpoint
+        Set the accept type of the request ["Accept"]
         """
+        if format is not None:
+            self.accept = self.__format(format)
+            self.headers["Accept"] = self.accept
+
+    def set_agent(self, agent: str) -> None:
+        """
+        Set the user agent of the request ["User-Agent"]
+        """
+        self.agent = agent
+        self.headers["User-Agent"] = agent
+
+    def set_auth(self, auth: tuple, type: str = "basic") -> None:
+        """
+        Set the authentication of the request
+        """
+        match type:
+            case "basic":
+                __auth = base64.b64encode(f"{auth[0]}:{auth[1]}".encode("utf-8"))
+                self.auth = f"Basic {__auth.decode('utf-8')}"
+                self.headers["Authorization"] = self.auth
+            case "bearer":
+                self.auth = f"Bearer {auth}"
+                self.headers["Authorization"] = self.auth
+            case "api-key":
+                self.auth = auth[0]
+                self.headers["X-API-Key"] = self.auth
+            case _:
+                self.auth = f"{type} {auth[0]}"
+                self.headers["Authorization"] = self.auth
+
+    def __send(self, method: str, url: str, data: dict = None, query: dict = None) -> urllib.request.Request:
+        """
+        Send the request
+        """
+        if query:
+            url = f"{url}?{urllib.parse.urlencode(query)}"
+        request = urllib.request.Request(url, method=method, headers=self.headers)
         if data:
-            data = urllib.parse.urlencode(data)
-            data = data.encode("ascii")
-        if self.proxy:
-            proxy = urllib.request.ProxyHandler({"http": self.proxy, "https": self.proxy})
-            opener = urllib.request.build_opener(proxy)
-            urllib.request.install_opener(opener)
-        req = urllib.request.Request(url, data=data, headers=self.headers, method=method)
-        return req
+            request.data = json.dumps(data).encode("utf-8")
+        # If self.accept is html or text, then return the response as a string
+        # Else, return the response as a dict
+        res = urllib.request.urlopen(request)
+        response_code = res.getcode()
+        if self.logger:
+            self.logger.handler.info(f"[{response_code}] {method} {url}")
+        return res
     
-    def get(self, url: str) -> None:
+    def html(self, response: urllib.request.Request) -> str:
         """
-        Query a REST endpoint with GET
+        Get the html response
         """
-        req = self.query(url, method="GET", data=None)
-        res = self.send(req)
-        if res:
-            if self.json:
-                res_json = json.loads(res)
-                if self.success:
-                    self.success(res_json)
-                return res_json
-            else:
-                if self.success:
-                    self.success(res)
-                return res
-        else:
-            self.error("Error: No response")
-        return None
-        
-    def post(self, url: str, data: dict = None) -> None:
+        return response.read().decode("utf-8")
+
+    def text(self, response: urllib.request.Request) -> str:
         """
-        Query a REST endpoint with POST
+        Get the text response
         """
-        req = self.query(url, method="POST", data=data)
-        res = self.send(req)
-        if res:
-            if self.json:
-                res_json = json.loads(res)
-                if self.success:
-                    self.success(res_json)
-                return res_json
-            else:
-                if self.success:
-                    self.success(res)
-                return res
-        else:
-            self.error("Error: No response")
-        
-    def put(self, url: str, data: dict = None) -> None:
+        return response.read().decode("utf-8")
+
+    def json(self, response: urllib.request.Request) -> dict:
         """
-        Query a REST endpoint with PUT
+        Get the json response
         """
-        req = self.query(url, method="PUT", data=data)
-        res = self.send(req)
-        if res:
-            if self.json:
-                res_json = json.loads(res)
-                if self.success:
-                    self.success(res_json)
-                return res_json
-            else:
-                if self.success:
-                    self.success(res)
-                return res
-        else:
-            self.error("Error: No response")
-        
-    def delete(self, url: str, data: dict = None) -> None:
-        """
-        Query a REST endpoint with DELETE
-        """
-        req = self.query(url, method="DELETE", data=data)
-        res = self.send(req)
-        if res:
-            if self.json:
-                res_json = json.loads(res)
-                if self.success:
-                    self.success(res_json)
-                return res_json
-            else:
-                if self.success:
-                    self.success(res)
-                return res
-        else:
-            self.error("Error: No response")
+        return json.loads(response.read().decode("utf-8"))
     
-    def patch(self, url: str, data: dict = None) -> None:
+    def get(self, url: str, query: dict = None) -> dict:
         """
-        Query a REST endpoint with PATCH
+        Send a get request
         """
-        req = self.query(url, method="PATCH", data=data)
-        res = self.send(req)
-        if res:
-            if self.json:
-                res_json = json.loads(res)
-                if self.success:
-                    self.success(res_json)
-                return res_json
-            else:
-                if self.success:
-                    self.success(res)
-                return res
-        else:
-            self.error("Error: No response")
-        
-    def send(self, req: urllib.request.Request) -> None:
+        res = self.__send("GET", url, query=query)
+        return res
+    
+    def post(self, url: str, data: dict = None, query: dict = None) -> dict:
         """
-        Send a request
+        Send a post request
         """
-        with urllib.request.urlopen(req) as res:
-            return res.read().decode("utf-8")
-        
-    def set_header(self, key: str, value: str) -> None:
+        res = self.__send("POST", url, data=data, query=query)
+        return res
+    
+    def put(self, url: str, data: dict = None, query: dict = None) -> dict:
         """
-        Set a header
+        Send a put request
         """
-        self.headers[key] = value
-
-    def set_headers(self, headers: dict) -> None:
+        res = self.__send("PUT", url, data=data, query=query)
+        return res
+    
+    def delete(self, url: str, query: dict = None) -> dict:
         """
-        Set multiple headers
+        Send a delete request
         """
-        for key, value in headers.items():
-            self.set_header(key, value)
-
-    def set_proxy(self, proxy: str) -> None:
+        res = self.__send("DELETE", url, query=query)
+        return res
+    
+    def head(self, url: str, query: dict = None) -> dict:
         """
-        Set a proxy
+        Send a head request
         """
-        self.proxy = proxy
-
-    def set_auth(self, auth: tuple) -> None:
+        res = self.__send("HEAD", url, query=query)
+        return res
+    
+    def options(self, url: str, query: dict = None) -> dict:
         """
-        Set an auth
+        Send a options request
         """
-        self.headers["Authorization"] = f"{auth[0]} {auth[1]}"
-
-    def set_format(self, format: str) -> None:
+        res = self.__send("OPTIONS", url, query=query)
+        return res
+    
+    def patch(self, url: str, data: dict = None, query: dict = None) -> dict:
         """
-        Set a format
+        Send a patch request
         """
-        self.headers["Content-Type"] = format
-        self.json = False
-        if format == "json":
-            self.json = True
-
-    def set_json(self, json: bool) -> None:
-        """
-        Set json
-        """
-        self.json = json
-        if json:
-            self.headers["Content-Type"] = "application/json"
-
-    def set_user_agent(self, user_agent: str) -> None:
-        """
-        Set a user agent
-        """
-        self.headers["User-Agent"] = user_agent
-
-    def set_success(self, success: callable) -> None:
-        """
-        Set a success callback
-        """
-        self.success = success
+        res = self.__send("PATCH", url, data=data, query=query)
+        return res

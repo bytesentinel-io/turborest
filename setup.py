@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name="turborest",
-    version="0.1.4",
+    version="0.1.5",
     author="ByteSentinel.io",
     author_email="dev@bytesentinel.io",
     description="A library for monitoring files and directories for changes",
@@ -20,4 +20,7 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
+    install_requires=[
+        "fibertrace>=0.1.5",
+    ]
 )
