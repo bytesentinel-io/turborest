@@ -6,8 +6,16 @@ import base64
 from .__main__ import Application
 from .logger import HTTPLogger
 
+class Authentication:
+    def __init__(self, auth: tuple, type: str = "basic") -> None:
+        """
+        Create an authentication
+        """
+        self.auth = auth
+        self.type = type
+
 class Client:
-    def __init__(self, format: str = None, auth: tuple = None, proxy: str = None, logger: HTTPLogger = None) -> None:
+    def __init__(self, format: str = None, auth: Authentication = None, proxy: str = None, logger: HTTPLogger = None) -> None:
         """
         Create a pyResty client
         """
@@ -19,6 +27,8 @@ class Client:
         self.logger = None
         if logger:
             self.logger = logger
+        if auth:
+            self.set_auth(auth.auth, auth.type)
 
     def __format(self, value: str) -> str:
         """
